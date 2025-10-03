@@ -1,3 +1,4 @@
+from datetime import timedelta
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -5,6 +6,8 @@ import matplotlib.pyplot as plt
 import json
 import sys
 import seaborn as sns
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 
 def find_col(cols, candidates):
     for cand in candidates:
@@ -87,7 +90,7 @@ def main():
     # • How should the company adjust its marketing strategies to VIP customers and less-engaged ones?
     # • Should the company acquire new customers, and how much money should they spend on it?
 
-
+    # 1) Doanh số & số giao dịch theo năm (2 trục Oy)
     df["year"] = df[date_col].dt.year.astype(int)  # ép thành số nguyên
 
     yearly_rev = df.groupby("year")[sales_col].sum().sort_index()
@@ -139,23 +142,8 @@ def main():
     plt.savefig(fig_path5, dpi=150)
     print(f"- Biểu đồ doanh số & số giao dịch (2 trục Oy) lưu tại: {fig_path5}")
 
+    # 2) Doanh thu hàng tháng và doanh số trung bình mỗi tháng là bao nhiêu?
 
-
-
-    # • Doanh thu hàng tháng là bao nhiêu?
-    # • Đặc điểm nhân khẩu học chính của khách hàng là gì?
-    # • Thị trường (quốc gia) nào tạo ra doanh số trung bình cao nhất?
-    # • Lợi nhuận theo từng phân khúc là bao nhiêu?
-    # • Giai đoạn nào bán chạy nhất và kém nhất?
-    # • Sản phẩm nào bán chạy nhất?
-    # • Công ty nên đặt hàng nhiều hơn hay ít hơn những sản phẩm nào?
-    # • Công ty nên điều chỉnh chiến lược tiếp thị của mình như thế nào đối với khách hàng VIP và khách hàng ít tương tác?
-    # • Công ty có nên thu hút khách hàng mới không và nên chi bao nhiêu tiền cho việc này?
-
-
-    # Trả lời các câu hỏi phân tích bằng biểu đồ và lưu vào thư mục analysis_outputs
-    # What is the monthly revenue?
-    # 3) Doanh thu hàng tháng là bao nhiêu?
     monthly_rev = df.groupby("year_month")[sales_col].sum().sort_index()
 
     total_sales = float(df[sales_col].sum())
@@ -192,10 +180,8 @@ def main():
     # ax.set_ylabel("Count")
     # safe_save_fig(fig, out_dir / "sales_distribution.png")
 
-    # 3) Age distribution & avg sales by age group (if age present)
-    # --- Combo: Age distribution (bars) + Avg sales by age group (line, twin axis) ---
-    # --- Combo: Total Sales (bars) + Customer Count (line) by Age Group ---
-    # --- Combo: Total Sales (bar, left Y) + Transactions (line, right Y) by Age Group ---
+    # 3) Đặc điểm nhân khẩu học chính của khách hàng là gì?
+
     if "age" in df.columns:
         sns.set_theme(style="whitegrid")
         df["age"] = pd.to_numeric(df["age"], errors="coerce")
@@ -238,14 +224,6 @@ def main():
 
         # TẮT ĐƯỜNG NGANG (GRID) CỦA TRỤC PHẢI
         ax2.grid(False)                # tắt toàn bộ grid của ax2
-        # hoặc chỉ tắt grid ngang của trục phải: ax2.yaxis.grid(False)
-
-        # Tuổi trung bình (tuỳ chọn, giữ nếu bạn cần tham chiếu)
-        # mean_age = float(df["age"].mean())
-        # centers = [(age_bins[i]+age_bins[i+1])/2 for i in range(len(age_bins)-1)]
-        # closest_idx = min(range(len(centers)), key=lambda i: abs(centers[i] - mean_age))
-        # ax1.axvline(closest_idx, color="gray", linestyle="--", alpha=0.5)
-        # ax1.text(closest_idx + 0.02, ax1.get_ylim()[1]*0.95, f"Tuổi TB ≈ {mean_age:.1f}", color="gray")
 
         plt.title("Tổng doanh số & Số giao dịch theo nhóm tuổi", fontsize=16, weight="bold")
 
@@ -263,10 +241,8 @@ def main():
         except Exception:
             plt.savefig(fig_path, dpi=150)
         print(f"- Biểu đồ tuổi (Doanh số & Số giao dịch) lưu tại: {fig_path}")
-    # 7) Market (state/province) avg sales per transaction (top 10)
-    # --- Top 10 State/Province by Average Sales per Transaction ---
-    # --- Top 10 State/Province by TOTAL Sales (tổng doanh số) ---
-    # --- Top 10 State/Province by TOTAL Sales + Transactions line (dual axis) ---
+    # 7) Thị trường (quốc gia) nào tạo ra doanh số trung bình cao nhất?
+
     state_col = find_col(df.columns, ["State", "Province", "State/Province", "State Province"])
     if state_col is not None:
         # Tổng hợp theo state
@@ -340,7 +316,8 @@ def main():
         print("- Không tìm thấy cột State/Province để tính tổng doanh số theo state.")
 
 
-    # 6) Profits by segment
+    # 6)  Lợi nhuận theo từng phân khúc là bao nhiêu?
+
     if profit_col and segment_col:
         seg = df.groupby(segment_col)[profit_col].sum().sort_values(ascending=False)
         fig, ax = plt.subplots(figsize=(8,4))
@@ -350,7 +327,7 @@ def main():
         ax.tick_params(axis="x", rotation=45)
         safe_save_fig(fig, out_dir / "Cau6.png")
 
-    # 7) Heatmap: monthly revenue (years x months) if multi-year
+    # 7) Giai đoạn nào bán chạy nhất và kém nhất?
     mm = df.groupby(["year_month"])[sales_col].sum()
     if not mm.empty:
         # convert year_month to pivot table year x month
@@ -372,7 +349,7 @@ def main():
         ax.set_title("Monthly Revenue Heatmap (year x month)")
         safe_save_fig(fig, out_dir / "Cau7.png")
 
-    # --- Top 10 products by QUANTITY sold (with each product's TOTAL SALES) ---
+    # 8) Sản phẩm nào bán chạy nhất?
     if product_col and qty_col:
         prod_agg = df.groupby(product_col).agg(
             total_units=(qty_col, "sum"),      # số lượng bán ra
@@ -405,7 +382,8 @@ def main():
     else:
         print("⚠️ Thiếu cột Product để tính Top 10 theo số lượng.")
 
-    # 9) Reorder recommendations: ORDER_MORE / ORDER_LESS theo velocity
+    # 9) Công ty nên đặt hàng nhiều hơn hay ít hơn những sản phẩm nào?
+
     if product_col:
         has_qty = qty_col is not None
 
@@ -471,10 +449,174 @@ def main():
 
 
 
-    # # with open(out_dir / "visual_summary.json", "w", encoding="utf-8") as f:
-    # #     json.dump(summary, f, ensure_ascii=False, indent=2)
+    # Kiểm tra cột cần thiết
+    # • Công ty nên điều chỉnh chiến lược tiếp thị của mình như thế nào đối với khách hàng VIP và khách hàng ít tương tác?
+    # • Công ty có nên thu hút khách hàng mới không và nên chi bao nhiêu tiền cho việc này?
 
-    # print("Đã sinh biểu đồ vào:", out_dir)
+    # Chuẩn hoá dữ liệu nguồn
+    df = df.copy()
+
+    # Tạo đặc trưng RFM per customer
+    today = df[date_col].max() + timedelta(days=1)
+    rfm = df.groupby(cust_col).agg(
+        last_date=(date_col, "max"),
+        frequency=(cust_col, "size"),
+        monetary=(sales_col, "sum"),
+        aov=(sales_col, "mean")
+    ).reset_index()
+    rfm["recency_days"] = (today - rfm["last_date"]).dt.days
+
+    # Ma trận đặc trưng để cluster
+    feat_cols = ["recency_days","frequency","monetary","aov"]
+    X_raw = rfm[feat_cols].fillna(0.0)
+
+    # Scale
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X_raw)
+
+
+    # ---- Tìm k tối ưu: so sánh SSD (Elbow) + Silhouette ----
+    from sklearn.metrics import silhouette_score
+
+    range_n_clusters = [1,2,3,4,5,6,7,8]
+    rows = []
+    ssd = []
+    sil = []
+
+    for k in range_n_clusters:
+        km = KMeans(n_clusters=k, max_iter=300, n_init=30, random_state=42)
+        km.fit(X)
+        inertia = float(km.inertia_)
+        ssd.append(inertia)
+
+        # Silhouette chỉ có ý nghĩa khi k >= 2
+        if k >= 2:
+            score = float(silhouette_score(X, km.labels_))
+        else:
+            score = float("nan")
+
+        sil.append(score)
+        rows.append({"k": k, "SSD": inertia, "Silhouette": score})
+
+    metrics_df = pd.DataFrame(rows)
+
+    # Lưu bảng chỉ số
+    ssd_csv = out_dir / "kmeans_k_selection.csv"
+    metrics_df.to_csv(ssd_csv, index=False, encoding="utf-8-sig")
+    print(f"- K selection table saved to: {ssd_csv}")
+
+    # Vẽ Elbow + Silhouette side-by-side (nếu muốn gọn, bạn có thể vẽ 2 hình riêng)
+    fig, ax1 = plt.subplots(figsize=(9,6))
+    ax1.plot(range_n_clusters, ssd, marker="o", label="SSD (inertia)")
+    ax1.set_xlabel("Số cụm (k)")
+    ax1.set_ylabel("SSD (inertia)")
+    ax1.grid(True)
+
+    # Trục phụ cho Silhouette
+    ax2 = ax1.twinx()
+    ax2.plot(range_n_clusters, sil, marker="s", linestyle="--", color="tab:orange", label="Silhouette")
+    ax2.set_ylabel("Silhouette")
+
+    # Gộp legend
+    lines, labels = [], []
+    for ax in (ax1, ax2):
+        lns, lbs = ax.get_legend_handles_labels()
+        lines += lns; labels += lbs
+    ax1.legend(lines, labels, loc="best")
+
+    kplot = out_dir / "kmeans_elbow_silhouette.png"
+    plt.tight_layout()
+    plt.savefig(kplot, dpi=150)
+    plt.close()
+    print(f"- Elbow + Silhouette plot saved to: {kplot}")
+
+    # ---- Chọn k tốt nhất ----
+    # Quy tắc đơn giản: ưu tiên k có Silhouette tối đa (k>=2).
+    # Nếu có tie, lấy k nhỏ hơn để dễ diễn giải.
+    valid = metrics_df[metrics_df["k"] >= 2].dropna(subset=["Silhouette"])
+    if not valid.empty:
+        k_best = int(valid.sort_values(["Silhouette","k"], ascending=[False, True]).iloc[0]["k"])
+    else:
+        # fallback nếu không tính được silhouette (hiếm)
+        # lấy điểm “khuỷu” thô theo SSD: chọn k có giảm SSD tương đối lớn trước khi “chậm lại”.
+        # Ở đây fallback đơn giản: chọn k=4 như trước.
+        k_best = 4
+
+    print(f"→ Chọn k tối ưu theo Silhouette: k={k_best}")
+
+    # ---- Fit KMeans với k đã chọn và lưu kết quả ----
+    km_best = KMeans(n_clusters=k_best, max_iter=500, n_init=50, random_state=42)
+    rfm["cluster_k"] = km_best.fit_predict(X)
+
+    clusters_csv = out_dir / f"kmeans_clusters_k{k_best}.csv"
+    rfm[[cust_col, "cluster_k"] + feat_cols].to_csv(clusters_csv, index=False, encoding="utf-8-sig")
+    print(f"- Cluster assignments (k={k_best}) saved to: {clusters_csv}")
+
+    centers_unscaled = pd.DataFrame(
+        scaler.inverse_transform(km_best.cluster_centers_),
+        columns=feat_cols
+    )
+    centers_csv = out_dir / f"kmeans_centers_k{k_best}.csv"
+    centers_unscaled.to_csv(centers_csv, index=False, encoding="utf-8-sig")
+    print(f"- Cluster centers (unscaled) saved to: {centers_csv}")
+
+    # In thêm Silhouette của k_best để tham khảo
+    sil_best = float(silhouette_score(X, km_best.labels_)) if k_best >= 2 else float("nan")
+    print(f"- Silhouette(k={k_best}) = {sil_best:.4f}")
+
+
+    # # Elbow: SSD (inertia_) cho k = 1..8
+    # range_n_clusters = [1,2,3,4,5,6,7,8]
+    # ssd = []
+    # for k in range_n_clusters:
+    #     km = KMeans(n_clusters=k, max_iter=200, n_init=20, random_state=42)
+    #     km.fit(X)
+    #     ssd.append(float(km.inertia_))
+
+    # # Vẽ Elbow curve
+    # fig, ax = plt.subplots(figsize=(8,6))
+    # ax.plot(range_n_clusters, ssd, marker="o")
+    # ax.set_title("Elbow Curve for K-Means Clustering")
+    # ax.set_xlabel("Số cụm (k)")
+    # ax.set_ylabel("Sum of Squared Distances (SSD)")
+    # ax.grid(True)
+
+    # elbow_png = out_dir / "kmeans_elbow.png"
+    # plt.tight_layout()
+    # try:
+    #     safe_save_fig(fig, elbow_png)
+    # except Exception:
+    #     plt.savefig(elbow_png, dpi=150)
+    # print(f"- Elbow curve saved to: {elbow_png}")
+
+    # # # Lưu bảng SSD để tham khảo
+    # # ssd_df = pd.DataFrame({"k": range_n_clusters, "SSD": ssd})
+    # # ssd_csv = out_dir / "kmeans_elbow_ssd.csv"
+    # # ssd_df.to_csv(ssd_csv, index=False, encoding="utf-8-sig")
+    # # print(f"- SSD table saved to: {ssd_csv}")
+
+    # # (Tuỳ chọn) chọn k và gán nhãn cluster để bạn xem thử
+    # # Ở đây mình ví dụ k=4; bạn nhìn Elbow rồi đổi con số này tuỳ theo “điểm khuỷu”
+    # k_pick = 4
+    # km4 = KMeans(n_clusters=k_pick, max_iter=300, n_init=30, random_state=42)
+    # rfm["cluster_k4"] = km4.fit_predict(X)
+
+    # # Lưu cluster assignment + tâm cụm để kiểm tra
+    # clusters_csv = out_dir / f"kmeans_clusters_k{k_pick}.csv"
+    # rfm[[cust_col, "cluster_k4"] + feat_cols].to_csv(clusters_csv, index=False, encoding="utf-8-sig")
+    # print(f"- Cluster assignments (k={k_pick}) saved to: {clusters_csv}")
+
+    # centers = pd.DataFrame(km4.cluster_centers_, columns=feat_cols)
+    # # đảo scale về đơn vị gốc để dễ hiểu
+    # centers_unscaled = pd.DataFrame(scaler.inverse_transform(km4.cluster_centers_), columns=feat_cols)
+    # centers_csv = out_dir / f"kmeans_centers_k{k_pick}.csv"
+    # centers_unscaled.to_csv(centers_csv, index=False, encoding="utf-8-sig")
+    # print(f"- Cluster centers (unscaled) saved to: {centers_csv}")
+
+
+
+
+    # # print("Đã sinh biểu đồ vào:", out_dir)
 
 if __name__ == "__main__":
     main()

@@ -8,6 +8,7 @@ import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+import matplotlib.ticker as ticker
 
 def find_col(cols, candidates):
     for cand in candidates:
@@ -61,7 +62,6 @@ def main():
     ).reset_index()
     rfm["recency_days"] = (today - rfm["last_date"]).dt.days
 
-    # Merge optional aggregates
     if profit_col:
         prof_by_cust = df.groupby(cust_col)[profit_col].sum().rename("total_profit")
         rfm = rfm.merge(prof_by_cust, on=cust_col, how="left")
@@ -130,24 +130,23 @@ def main():
     sil_best = silhouette_score(X, labels)
     print(f"✓ Silhouette score (k={k_best}): {sil_best:.4f}")
 
-    # === 3) CLUSTER DISTRIBUTION ===
-    cnt = rfm["Cluster"].value_counts().sort_index()
-    fig, ax = plt.subplots(figsize=(8,5))
-    bars = ax.bar(cnt.index.astype(str), cnt.values, color='skyblue', edgecolor='navy')
-    ax.set_xlabel("Cluster", fontsize=11)
-    ax.set_ylabel("Số khách hàng", fontsize=11)
-    ax.set_title("Phân bố số khách hàng theo cụm", fontsize=14, fontweight='bold')
+    # # === 3) Phân cụm khách hàng
+    # cnt = rfm["Cluster"].value_counts().sort_index()
+    # fig, ax = plt.subplots(figsize=(8,5))
+    # bars = ax.bar(cnt.index.astype(str), cnt.values, color='skyblue', edgecolor='navy')
+    # ax.set_xlabel("Cluster", fontsize=11)
+    # ax.set_ylabel("Số khách hàng", fontsize=11)
+    # ax.set_title("Phân bố số khách hàng theo cụm", fontsize=14, fontweight='bold')
     
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2, height,
-                f'{int(height):,}', ha='center', va='bottom', fontsize=10)
+    # for bar in bars:
+    #     height = bar.get_height()
+    #     ax.text(bar.get_x() + bar.get_width()/2, height,
+    #             f'{int(height):,}', ha='center', va='bottom', fontsize=10)
     
-    plt.tight_layout()
-    safe_save_fig(fig, out_dir / "cluster_distribution.png")
-    print(f"✓ Saved: {out_dir / 'cluster_distribution.png'}")
+    # plt.tight_layout()
+    # safe_save_fig(fig, out_dir / "cluster_distribution.png")
 
-    # === 4) KPI BY CLUSTER ===
+    # === 4) KPI CLUSTER ===
     kpi = rfm.groupby("Cluster").agg(
         customers=(cust_col, "nunique"),
         orders=("frequency", "sum"),
@@ -162,71 +161,101 @@ def main():
     if "total_profit" in rfm.columns:
         kpi = kpi.merge(rfm.groupby("Cluster")["total_profit"].sum().reset_index(), on="Cluster")
 
-    # Plot KPI metrics
-    metrics = ["total_sales","avg_order_value","avg_frequency","avg_recency_days"]
-    if "total_profit" in kpi.columns:
-        metrics.append("total_profit")
-    
-    for m in metrics:
-        if m in kpi.columns:
-            fig, ax = plt.subplots(figsize=(8,5))
-            bars = ax.bar(kpi["Cluster"].astype(str), kpi[m].values, color='coral', edgecolor='darkred')
-            ax.set_xlabel("Cluster", fontsize=11)
-            ax.set_ylabel(m.replace("_"," ").title(), fontsize=11)
-            ax.set_title(f"KPI theo cụm: {m.replace('_',' ').title()}", fontsize=14, fontweight='bold')
-            
-            for bar in bars:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2, height,
-                        f'{height:,.0f}', ha='center', va='bottom', fontsize=9)
-            
-            plt.tight_layout()
-            safe_save_fig(fig, out_dir / f"kpi_{m}_by_cluster.png")
-            print(f"✓ Saved: {out_dir / f'kpi_{m}_by_cluster.png'}")
 
-    # === 5) RADAR CHART - CLUSTER CENTERS ===
-    centers_unscaled = pd.DataFrame(
-        scaler.inverse_transform(kmeans.cluster_centers_),
-        columns=feat_cols
-    )
-    
-    # Normalize for radar chart
-    norm = (centers_unscaled - centers_unscaled.min()) / (centers_unscaled.max() - centers_unscaled.min() + 1e-9)
-    
-    labels_radar = feat_cols
-    angles = np.linspace(0, 2*np.pi, len(labels_radar), endpoint=False).tolist()
-    angles += angles[:1]
+    # # === 2) Hiệu quả tài chính + quy mô khách hàng theo cụm
+    # fig, ax1 = plt.subplots(figsize=(8,5))
 
-    fig = plt.figure(figsize=(8,8))
-    ax = plt.subplot(111, polar=True)
-    
-    colors = plt.cm.Set2(range(len(norm)))
-    for idx, row in norm.iterrows():
-        vals = row.values.tolist()
-        vals += vals[:1]
-        ax.plot(angles, vals, 'o-', linewidth=2, label=f'Cluster {idx}', color=colors[idx])
-        ax.fill(angles, vals, alpha=0.15, color=colors[idx])
-    
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels_radar, fontsize=10)
-    ax.set_ylim(0, 1)
-    ax.set_title("Tâm cụm (chuẩn hóa) - Radar Chart", fontsize=14, fontweight='bold', pad=20)
-    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
-    ax.grid(True)
-    
-    plt.tight_layout()
-    safe_save_fig(fig, out_dir / "centers_radar_chart.png")
-    print(f"✓ Saved: {out_dir / 'centers_radar_chart.png'}")
+    # x = np.arange(len(kpi["Cluster"]))
+    # width = 0.35
+
+    # # --- Cột: Total Sales & Total Profit ---
+    # ax1.bar(x - width/2, kpi["total_sales"], width, label="Tổng doanh thu", color="#ff9966")
+    # ax1.bar(x + width/2, kpi["total_profit"], width, label="Tổng lợi nhuận", color="#66b3ff")
+
+    # ax1.set_xlabel("Cụm khách hàng", fontsize=11)
+    # ax1.set_ylabel("Giá trị ($)", fontsize=11)
+    # ax1.set_title("Hiệu quả tài chính & số lượng khách hàng theo cụm", fontsize=14, fontweight="bold")
+    # ax1.set_xticks(x)
+    # ax1.set_xticklabels(kpi["Cluster"].astype(str))
+
+    # # Gắn nhãn giá trị trên cột
+    # for i, v in enumerate(kpi["total_sales"]):
+    #     ax1.text(i - width/2, v, f"{v:,.0f}", ha="center", va="bottom", fontsize=8)
+    # for i, v in enumerate(kpi["total_profit"]):
+    #     ax1.text(i + width/2, v, f"{v:,.0f}", ha="center", va="bottom", fontsize=8)
+
+    # # --- Trục phụ: số lượng khách hàng ---
+    # ax2 = ax1.twinx()
+    # cnt = rfm["Cluster"].value_counts().sort_index()
+    # ax2.plot(x, cnt.values, color="green", marker="o", linewidth=2.5, label="Số khách hàng")
+    # ax2.set_ylabel("Số khách hàng", color="green", fontsize=11)
+    # ax2.tick_params(axis="y", labelcolor="green")
+
+    # # Gắn nhãn số khách hàng
+    # for i, v in enumerate(cnt.values):
+    #     ax2.text(i, v + max(cnt.values)*0.02, f"{v:,}", ha="center", va="bottom", color="green", fontsize=9)
+
+    # # --- Gộp chú thích ---
+    # lines_1, labels_1 = ax1.get_legend_handles_labels()
+    # lines_2, labels_2 = ax2.get_legend_handles_labels()
+    # ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper left")
+
+    # plt.tight_layout()
+    # safe_save_fig(fig, out_dir / "kpi_financial_customer_by_cluster.png")
+    # print("✓ Saved:", out_dir / "kpi_financial_customer_by_cluster.png")
+
+
+
+    # # Biểu đồ hành vi khách hàng (AOV, Frequency, Recency)
+    # fig, ax2 = plt.subplots(figsize=(8,5))
+
+    # metrics = ["avg_order_value", "avg_frequency", "avg_recency_days"]
+    # labels = [
+    #     "Giá trị TB/đơn ($)",
+    #     "Tần suất mua TB (lần)",
+    #     "Số ngày từ lần mua gần nhất (ngày)"
+    # ]
+    # colors = ["#66c2a5", "#fc8d62", "#8da0cb"]
+
+    # for i, m in enumerate(metrics):
+    #     if m in kpi.columns:
+    #         y = kpi[m]
+    #         ax2.plot(
+    #             kpi["Cluster"].astype(str),
+    #             y,
+    #             marker="o",
+    #             label=labels[i],
+    #             color=colors[i],
+    #             linewidth=2
+    #         )
+    #         for j, val in enumerate(y):
+    #             ax2.text(
+    #                 j,
+    #                 val + (max(y) * 0.02), 
+    #                 f"{val:,.1f}",
+    #                 ha="center",
+    #                 va="bottom",
+    #                 fontsize=9,
+    #                 color=colors[i]
+    #             )
+
+    # ax2.set_xlabel("Cụm khách hàng", fontsize=11)
+    # ax2.set_ylabel("Giá trị trung bình", fontsize=11)
+    # ax2.set_title("Hành vi khách hàng theo cụm", fontsize=14, fontweight="bold")
+    # ax2.legend()
+    # plt.tight_layout()
+    # safe_save_fig(fig, out_dir / "kpi_behavior_by_cluster.png")
+    # print("✓ Saved:", out_dir / "kpi_behavior_by_cluster.png")
+
 
     # === 6) PAIRPLOT ===
-    try:
-        sns.set(style="ticks")
-        pp = sns.pairplot(rfm, hue="Cluster", vars=feat_cols, palette="Set2", corner=True, plot_kws={'alpha':0.6})
-        pp.fig.suptitle("Quan hệ cụm - RFM Features", y=1.02, fontsize=14, fontweight='bold')
-        safe_save_fig(pp.fig, out_dir / f"pairplot_k{k_best}.png")
-        print(f"✓ Saved: {out_dir / f'pairplot_k{k_best}.png'}")
-    except Exception as e:
-        print(f"[WARN] Không thể vẽ pairplot: {e}")
+
+    sns.set_style(style="ticks")
+    pp = sns.pairplot(rfm, hue="Cluster", vars=feat_cols, palette="Set2", corner=True, plot_kws={'alpha':0.6})
+    pp.fig.suptitle("Quan hệ cụm - RFM Features", y=1.02, fontsize=14, fontweight='bold')
+    safe_save_fig(pp.fig, out_dir / f"pairplot_k{k_best}.png")
+    print(f"✓ Saved: {out_dir / f'pairplot_k{k_best}.png'}")
+
 
     # === 7) TOP PRODUCTS BY CLUSTER ===
     if prod_col and prod_col in df.columns:
@@ -252,10 +281,6 @@ def main():
                 plt.tight_layout()
                 safe_save_fig(fig, out_dir / f"top_products_cluster_{c}.png")
                 print(f"✓ Saved: {out_dir / f'top_products_cluster_{c}.png'}")
-
-    print(f"\n{'='*50}")
-    print(f"✓ Hoàn thành! Tất cả visualization đã được lưu vào: {out_dir}")
-    print(f"{'='*50}")
 
 if __name__ == "__main__":
     main()

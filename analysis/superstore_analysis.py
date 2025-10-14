@@ -1,15 +1,10 @@
-from datetime import timedelta
-import textwrap
 import pandas as pd
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 import sys
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
 import dataframe_image as dfi
-import matplotlib.ticker as ticker
 
 
 def find_col(cols, candidates):
@@ -58,7 +53,6 @@ def main():
         sys.exit(1)
 
     # normalize
-    # Chuẩn hóa dữ liệu số, loai bỏ ký tự $ và dấu phẩy
     df[sales_col] = df[sales_col].astype(str).str.replace(r'[\$,]', '', regex=True)
     df[sales_col] = pd.to_numeric(df[sales_col], errors='coerce').fillna(0.0)
     if profit_col:
@@ -69,7 +63,6 @@ def main():
         df[disc_col] = (df[disc_col] * 100).round(1)
 
     # dates
-    # xử lý cột ngày tháng
     if date_col:
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
     else:
@@ -77,7 +70,7 @@ def main():
         date_col = "_date_"
     df["year_month"] = df[date_col].dt.to_period("M").astype(str)
 
-    out_dir =  Path("./analysis_outputs2")
+    out_dir =  Path("./analysis_outputs")
     out_dir.mkdir(exist_ok=True)
 
     df.to_csv(Path("data/cleaned_data.csv"), index=False)
@@ -187,7 +180,7 @@ def main():
     safe_save_fig(plt.gcf(), fig_path)
 
     
-    # 6) Phân tích khách hàng theo phân khúc (Segment): doanh số & lợi nhuận
+    # 3) Phân tích khách hàng theo phân khúc (Segment): doanh số & lợi nhuận
     grouped = df.groupby("Segment")[["Sales", "Profit"]].sum().sort_values("Sales", ascending=False)
 
     fig, ax = plt.subplots(figsize=(9, 5))
@@ -223,7 +216,7 @@ def main():
     # plt.show()
     safe_save_fig(fig, out_dir / "Segment_customer.png")
 
-    # 7) Thị trường nào tạo ra doanh số trung bình cao nhất?
+    # 4) Thị trường (bang nào) tạo ra doanh số trung bình cao nhất?
     # Tổng hợp theo state
     state_stats = df.groupby(state_col)[sales_col].agg(
         total_sale="sum",
@@ -234,11 +227,9 @@ def main():
     # Lấy Top 10 theo tổng doanh số
     top_states = state_stats.sort_values("total_sale", ascending=False).head(10)
 
-    # Chuẩn bị toạ độ trục X rời rạc để vẽ bar + line chung
     x_labels = top_states.index.astype(str)
     x = np.arange(len(top_states))
 
-    # Vẽ
     fig, ax1 = plt.subplots(figsize=(12, 5))
 
     # Bar: Tổng doanh số (trục trái)
@@ -279,10 +270,7 @@ def main():
     plt.tight_layout()
     safe_save_fig(fig, out_dir / "Top10State.png")
 
-
-    # Sales và Profit theo từng Sub-Category
-
-    # Giả sử df có các cột: 'Sub-Category', 'Sales', 'Profit'
+    # 5) Phân tích nhóm mặt hàng (Sub-Category): doanh số & lợi nhuận
     subcat_group = df.groupby("Sub-Category")[["Sales", "Profit"]].sum().sort_values("Sales", ascending=False)
 
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -315,7 +303,7 @@ def main():
     ax.set_title("Doanh số và lợi nhuận theo từng nhóm mặt hàng", fontsize=13, fontweight='bold')
     ax.legend()
 
-    ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}"))
+    ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:,.0f}"))
 
     ax.grid(axis='y', linestyle='--', alpha=0.6)
 
@@ -323,7 +311,7 @@ def main():
     # plt.show()
     safe_save_fig(fig, out_dir / "Sales_Profit_by_SubCategory.png")
 
-    # 7) Giai đoạn nào bán chạy nhất và kém nhất?
+    # 6) Giai đoạn nào bán chạy nhất và kém nhất?
     mm = df.groupby(["year_month"])[sales_col].sum()
     if not mm.empty:
         # convert year_month to pivot table year x month
@@ -339,7 +327,7 @@ def main():
         ax.set_ylabel("Năm", fontsize=11)
         safe_save_fig(fig, out_dir / "Heatmap_revenue.png")
 
-    # 8) Sản phẩm nào bán chạy nhất?
+    # 7) Sản phẩm nào bán chạy nhất?
     grouped = (
         df.groupby("Product ID")[["Quantity", "Sales", "Profit"]]
         .sum()
@@ -391,8 +379,7 @@ def main():
     # plt.show()
     safe_save_fig(fig, out_dir / "Top5_Products.png")
 
-    # # 9) Công ty nên đặt hàng nhiều hơn hay ít hơn những sản phẩm nào?
-    # --- Gom nhóm theo Product Name ---
+    # 8) Công ty nên đặt hàng nhiều hơn hay ít hơn những sản phẩm nào?
     product_stats = (
         df.groupby("Product ID")
         .agg({
